@@ -266,7 +266,11 @@ def candidate():
     tabs=st.tabs([tr("assess"),tr("load"),tr("profile"),tr("paths"),"Featured Jobs",tr("plan"),tr("report")])
     with tabs[0]:
         if st.button(tr("demo"),use_container_width=True):
-            ok,msg=demo(); st.success(msg) if ok else st.warning(msg)
+            ok,msg=demo()
+            if ok:
+                st.success(msg)
+            else:
+                st.warning(msg)
         st.divider()
         with st.form("f"):
             c1,c2=st.columns(2)
@@ -288,12 +292,21 @@ def candidate():
             if not name or "@" not in email: st.error(tr("invalid")); return
             st.session_state.candidate={"name":name,"email":email,"university":uni,"major":major,"year":year}
             ans={"str":{"analyse":s1,"plan":s2,"people":s3,"create":s4,"uncertain":s5},"int":{"data":i1,"help":i2,"lead":i3,"creative":i4,"organise":i5},"skill":{"comm":k1,"data":k2,"problem":k3,"present":k4,"digital":k5,"write":k6,"coord":k7,"research":k8},"val":{"growth":v1,"stability":v2,"income":v3,"impact":v4,"autonomy":v5,"leadership":v6},"ready":{"resume":r1,"interview":r2,"portfolio":r3,"clarity":r4,"search":r5}}
-            prof=calc(ans); st.session_state.profile=prof; ok,msg=save(prof,ans); st.success(msg) if ok else st.warning(msg)
+            prof=calc(ans)
+            st.session_state.profile=prof
+            ok,msg=save(prof,ans)
+            if ok:
+                st.success(msg)
+            else:
+                st.warning(msg)
     with tabs[1]:
         em=st.text_input(tr("email"),key="load_email")
         if st.button(tr("load_btn")):
             rec=load(em); st.session_state.record=rec
-            st.success(tr("loaded")) if rec else st.error(tr("not_found"))
+            if rec:
+                st.success(tr("loaded"))
+            else:
+                st.error(tr("not_found"))
     with tabs[2]:
         prof=st.session_state.profile; rec=st.session_state.record
         if not prof and not rec: st.info(tr("complete")); return
@@ -346,4 +359,4 @@ def org():
         c1,c2,c3,c4=st.columns(4); c1.metric(tr("records"),len(df)); c2.metric(tr("avg"),f"{readiness.mean():.0f}/100"); c3.metric(tr("share"),f"{readiness.ge(75).mean()*100:.0f}%"); c4.metric(tr("common"),top)
         vc=df["top_role"].value_counts().rename_axis("Career Path").reset_index(name="Candidates"); st.dataframe(vc,use_container_width=True,hide_index=True); st.bar_chart(vc.set_index("Career Path"))
 routes={"home":home,"candidate":candidate,"org":org}
-routes.get(st.session_state.view,home)()
+_ = routes.get(st.session_state.view, home)()
