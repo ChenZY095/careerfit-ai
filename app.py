@@ -339,7 +339,145 @@ def candidate():
         for item in roadmap:
             st.markdown(f'<div class="soft-card" style="margin-bottom:.75rem"><div class="eyebrow" style="color:#8a6b2f">{item["period"]}</div><h4>{item["title"]}</h4><p class="muted">{item["action"]}</p></div>',unsafe_allow_html=True)
     with tabs[6]:
-        st.info("Report download remains available in English for employer readability.")
+        prof=st.session_state.profile
+        rec=st.session_state.record
+
+        if not prof and not rec:
+            st.info(tr("complete"))
+            return
+
+        st.markdown("### CareerFit AI Career Report")
+
+        if prof:
+            ranked=prof["ranked"]
+            identity=prof["identity"]
+            readiness=prof["readiness"]
+            strengths=prof["strengths"]
+            gaps=prof["gaps"]
+            roadmap=prof["roadmap"]
+        else:
+            ranked=[
+                (rec.get("top_role"), int(rec.get("top_role_score") or 0)),
+                (rec.get("second_role"), int(rec.get("second_role_score") or 0)),
+                (rec.get("third_role"), int(rec.get("third_role_score") or 0)),
+            ]
+            identity=rec.get("career_identity","—")
+            readiness=rec.get("readiness_score",0)
+            strengths_data=rec.get("strengths") or {}
+            strengths=strengths_data.get("items",[]) if isinstance(strengths_data,dict) else []
+            gaps=rec.get("skill_gaps") or []
+            roadmap=rec.get("roadmap") or []
+
+        candidate=st.session_state.candidate
+        top_role=ranked[0][0] if ranked else "—"
+        top_score=ranked[0][1] if ranked else 0
+
+        c1,c2,c3=st.columns(3)
+        c1.metric("Career Identity", identity)
+        c2.metric("Readiness Score", f"{readiness}/100")
+        c3.metric("Top Role", f"{top_role} ({top_score}%)")
+
+        st.markdown("#### Candidate Information")
+        info_df=pd.DataFrame([
+            {"Field":"Name","Value":candidate.get("name","—")},
+            {"Field":"Email","Value":candidate.get("email","—")},
+            {"Field":"University","Value":candidate.get("university","—")},
+            {"Field":"Major / Field","Value":candidate.get("major","—")},
+            {"Field":"Graduation Year","Value":candidate.get("year","—")},
+        ])
+        st.dataframe(info_df, hide_index=True, use_container_width=True)
+
+        st.markdown("#### Top Career Matches")
+        role_df=pd.DataFrame([
+            {"Rank":i+1,"Role":role,"Fit Score":f"{score}%","Estimated Preparation":ROLES.get(role,{}).get("time","—"),"Indicative Salary":ROLES.get(role,{}).get("salary","—")}
+            for i,(role,score) in enumerate(ranked) if role
+        ])
+        st.dataframe(role_df, hide_index=True, use_container_width=True)
+
+        st.markdown("#### Core Strengths")
+        st.markdown("".join(f'<span class="badge">{x}</span>' for x in strengths), unsafe_allow_html=True)
+
+        st.markdown("#### Priority Skill Gaps")
+        st.markdown("".join(f'<span class="badge gold-badge">{x}</span>' for x in gaps), unsafe_allow_html=True)
+
+        st.markdown("#### 90-Day Development Roadmap")
+        for item in roadmap:
+            st.markdown(
+                f'<div class="soft-card" style="margin-bottom:.75rem">'
+                f'<div class="eyebrow" style="color:#8a6b2f">{item.get("period","")}</div>'
+                f'<h4>{item.get("title","")}</h4>'
+                f'<p class="muted">{item.get("action","")}</p>'
+                f'</div>',
+                unsafe_allow_html=True,
+            )
+
+        explanation = fallback_ai_style_explanation(
+            {
+                "identity": identity,
+                "readiness": readiness,
+                "ranked": ranked,
+                "strengths": strengths,
+                "gaps": gaps,
+            },
+            candidate,
+        )
+
+        st.markdown("#### Career Explanation Summary")
+        st.markdown(explanation)
+
+        report_lines=[
+            "CareerFit AI Career Report",
+            f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M')}",
+            "",
+            "Candidate Information",
+            f"Name: {candidate.get('name','—')}",
+            f"Email: {candidate.get('email','—')}",
+            f"University: {candidate.get('university','—')}",
+            f"Major / Field: {candidate.get('major','—')}",
+            f"Graduation Year: {candidate.get('year','—')}",
+            "",
+            "Career Profile",
+            f"Career Identity: {identity}",
+            f"Career Readiness Score: {readiness}/100",
+            "",
+            "Top Career Matches",
+        ]
+
+        for i,(role,score) in enumerate(ranked, start=1):
+            if role:
+                report_lines.append(f"{i}. {role} — {score}% fit")
+
+        report_lines.extend([
+            "",
+            "Core Strengths",
+            *[f"- {x}" for x in strengths],
+            "",
+            "Priority Skill Gaps",
+            *[f"- {x}" for x in gaps],
+            "",
+            "90-Day Development Roadmap",
+        ])
+
+        for item in roadmap:
+            report_lines.append(f"- {item.get('period','')}: {item.get('title','')} — {item.get('action','')}")
+
+        report_lines.extend([
+            "",
+            "Career Explanation Summary",
+            explanation.replace("**",""),
+            "",
+            "Note: This report is generated for career exploration and employability planning. It should not be treated as a deterministic employment decision.",
+        ])
+
+        report_text="\n".join(report_lines)
+
+        st.download_button(
+            "Download Career Report",
+            report_text.encode("utf-8"),
+            "CareerFit_AI_Career_Report.txt",
+            "text/plain",
+            use_container_width=True,
+        )
 def org():
     nav()
     if st.button(tr("back")): go("home")
