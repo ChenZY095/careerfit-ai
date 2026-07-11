@@ -5,6 +5,7 @@ import numpy as np
 import pandas as pd
 import streamlit as st
 from supabase import create_client
+from google import genai
 
 st.set_page_config(page_title="CareerFit AI", page_icon="🧭", layout="wide", initial_sidebar_state="collapsed")
 
@@ -104,6 +105,56 @@ def featured_jobs_section(title: str = "Featured Opportunities"):
 """,
                 unsafe_allow_html=True,
             )
+
+
+
+def generate_ai_explanation(profile, candidate):
+    try:
+        api_key = st.secrets.get("GEMINI_API_KEY", "")
+        if not api_key:
+            return "AI explanation is not enabled. Please add GEMINI_API_KEY in Streamlit Secrets."
+
+        client = genai.Client(api_key=api_key)
+
+        ranked_roles = profile.get("ranked", [])
+        role_text = ", ".join([f"{role} ({score}% fit)" for role, score in ranked_roles])
+
+        prompt = f"""
+You are a professional graduate career advisor.
+
+Write a concise, practical career explanation for the candidate below.
+Do not invent qualifications. Use only the provided data.
+Do not make deterministic claims. Use careful wording such as "suggests", "indicates", and "may fit".
+
+Candidate:
+Name: {candidate.get("name", "")}
+University: {candidate.get("university", "")}
+Major: {candidate.get("major", "")}
+Career identity: {profile.get("identity", "")}
+Career readiness score: {profile.get("readiness", "")}/100
+Top role matches: {role_text}
+Core strengths: {", ".join(profile.get("strengths", []))}
+Priority skill gaps: {", ".join(profile.get("gaps", []))}
+
+Output structure:
+1. Career identity explanation
+2. Why the top role fits
+3. Main skill gaps
+4. 30-day next step
+
+Keep it under 180 words.
+Use clear English.
+"""
+
+        response = client.models.generate_content(
+            model="gemini-2.0-flash",
+            contents=prompt,
+        )
+
+        return response.text
+
+    except Exception as e:
+        return f"AI explanation could not be generated: {e}"
 
 
 def db():
@@ -210,6 +261,14 @@ def candidate():
             st.markdown("".join(f'<span class="badge">{x}</span>' for x in prof["strengths"]),unsafe_allow_html=True)
         else:
             c1,c2,c3,c4=st.columns(4); c1.metric(tr("identity"),rec.get("career_identity")); c2.metric(tr("ready"),f'{rec.get("readiness_score")}/100'); c3.metric(tr("top"),rec.get("top_role")); c4.metric(tr("fit"),f'{int(rec.get("top_role_score") or 0)}%')
+
+        if prof:
+            st.divider()
+            st.markdown("### AI Career Explanation")
+            st.caption("Gemini is used only as an explanation layer. Role-fit scoring remains rule-based and transparent.")
+            if st.button("Generate AI Career Explanation", use_container_width=True):
+                ai_text = generate_ai_explanation(st.session_state.profile, st.session_state.candidate)
+                st.markdown(ai_text)
     with tabs[3]:
         prof=st.session_state.profile; rec=st.session_state.record
         ranked=prof["ranked"] if prof else ([(rec.get("top_role"),int(rec.get("top_role_score") or 0)),(rec.get("second_role"),int(rec.get("second_role_score") or 0)),(rec.get("third_role"),int(rec.get("third_role_score") or 0))] if rec else [])
@@ -231,7 +290,8 @@ def org():
     nav()
     if st.button(tr("back")): go("home")
     st.markdown(f"## {tr('org')}")
-    if st.text_input(tr("org_code"),type="password")!=str(st.secrets.get("ORG_ACCESS_CODE","")):
+    st.info("Demo access code for judges: CareerFit2026")
+    if st.text_input(tr("org_code"),type="password")!=str(st.secrets.get("ORG_ACCESS_CODE","CareerFit2026")):
         st.info(tr("org_hint")); return
     df=allc()
     if df.empty: st.warning(tr("no_records")); return
