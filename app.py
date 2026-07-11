@@ -1,636 +1,248 @@
 
 import json
 from datetime import datetime
-from typing import Any
-
 import numpy as np
 import pandas as pd
 import streamlit as st
-from supabase import Client, create_client
+from supabase import create_client
 
-st.set_page_config(
-    page_title="CareerFit AI",
-    page_icon="🧭",
-    layout="wide",
-    initial_sidebar_state="collapsed",
-)
+st.set_page_config(page_title="CareerFit AI", page_icon="🧭", layout="wide", initial_sidebar_state="collapsed")
 
-st.markdown(
-    """
+st.markdown("""
 <style>
-:root{--navy:#0f1f3d;--gold:#b89a5b;--light:#f5f6f8;--muted:#667085;--border:#e5e7eb}
 #MainMenu,footer,header{visibility:hidden}
 .block-container{max-width:1180px;padding-top:1.4rem;padding-bottom:4rem}
 .hero{background:linear-gradient(135deg,#0f1f3d,#1a2f56);color:#fff;padding:3rem;border-radius:24px;margin-bottom:1.4rem}
-.hero h1{font-size:3rem;line-height:1.06;margin:.5rem 0 1rem}.hero p{color:#d9e0eb;font-size:1.08rem;max-width:780px}
+.hero h1{font-size:3rem;line-height:1.06;margin:.5rem 0 1rem;white-space:pre-line}.hero p{color:#d9e0eb;font-size:1.08rem;max-width:780px}
 .eyebrow{text-transform:uppercase;letter-spacing:.12em;font-size:.76rem;color:#d8bf86;font-weight:700}
-.card,.role-card{background:#fff;border:1px solid var(--border);border-radius:20px;padding:1.2rem;box-shadow:0 8px 28px rgba(15,31,61,.06)}
-.soft-card{background:var(--light);border-radius:18px;padding:1.1rem;height:100%}
+.card,.role-card{background:#fff;border:1px solid #e5e7eb;border-radius:20px;padding:1.2rem;box-shadow:0 8px 28px rgba(15,31,61,.06)}
+.soft-card{background:#f5f6f8;border-radius:18px;padding:1.1rem;height:100%}
 .gold-card{background:#f6f0e3;border:1px solid #eadbb8;border-radius:18px;padding:1.2rem}
 .badge{display:inline-block;background:#eef2f7;color:#26364f;border-radius:999px;padding:.35rem .65rem;margin:.15rem .2rem .15rem 0;font-size:.83rem;font-weight:600}
-.gold-badge{background:#f6f0e3;color:#7b612c}.muted{color:var(--muted)}
-.navbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:1.2rem}.brand{font-size:1.35rem;font-weight:800;color:var(--navy)}
-.score{font-size:1.6rem;font-weight:800;color:var(--gold)}
+.gold-badge{background:#f6f0e3;color:#7b612c}.muted{color:#667085}.brand{font-size:1.35rem;font-weight:800;color:#0f1f3d}
+.score{font-size:1.6rem;font-weight:800;color:#b89a5b}
 div.stButton>button{border-radius:12px;border:none;background:#0f1f3d;color:#fff;font-weight:700}
 div.stButton>button:hover{background:#1b3159;color:#fff}
 </style>
-""",
-    unsafe_allow_html=True,
-)
+""", unsafe_allow_html=True)
 
-ROLE_LIBRARY = {
-    "Business Analyst": {
-        "salary": "RM 3,500–5,500 / month",
-        "time": "4–6 months",
-        "weights": {"analytical": 0.25, "structure": 0.20, "communication": 0.15, "data": 0.20, "enterprise": 0.10, "readiness": 0.10},
-        "gaps": ["SQL", "Dashboard storytelling", "Business requirements"],
-        "next": "Build a small business dashboard and explain the problem, metric and recommendation.",
-    },
-    "Data Analyst": {
-        "salary": "RM 3,200–5,000 / month",
-        "time": "5–7 months",
-        "weights": {"analytical": 0.30, "structure": 0.15, "communication": 0.08, "data": 0.30, "enterprise": 0.05, "readiness": 0.12},
-        "gaps": ["SQL", "Python", "Portfolio evidence"],
-        "next": "Complete one public-data project and present three actionable findings.",
-    },
-    "Product Operations Associate": {
+LANGS={"English":"en","中文":"zh","Bahasa Melayu":"ms"}
+TXT={
+"en":{"proto":"Career OS prototype · Talentbank Tech Hackathon 2026","hero":"Know where you fit.\nSee where you can go.","body":"CareerFit AI converts personal strengths, career interests, skills and readiness into explainable career pathways, actionable development plans and organisation-level talent insights.","cand":"Candidate Portal","org":"Organisation Portal","enter_c":"Enter Candidate Portal","enter_o":"Enter Organisation Portal","back":"← Back to Home","assess":"Assessment","load":"Load Existing Profile","profile":"Career Profile","paths":"Career Pathways","plan":"Skill Plan","report":"Career Report","name":"Full name","email":"Email","uni":"University","major":"Major / field of study","year":"Graduation year","gen":"Generate and Save My Career Profile","saved":"Profile saved to the CareerFit database.","invalid":"Enter a valid name and email.","load_btn":"Load My Career Profile","not_found":"No saved profile was found for this email.","loaded":"Saved profile loaded.","complete":"Complete the assessment or load an existing profile.","identity":"Career Identity","ready":"Career Readiness","top":"Top Match","fit":"Top Fit","strengths":"Core Strengths","gaps":"Priority Skill Gaps","action":"90-Day Action Plan","org_code":"Organisation access code","org_hint":"Enter the organisation access code to view candidate and cohort data.","no_records":"No candidate records are available yet.","emp":"Employer View","univ":"University View","pool":"Talent Pool","jobready":"Job-ready","developing":"Developing","intervention":"Require intervention","matches":"Candidate Matches","records":"Candidate Records","avg":"Average Readiness","share":"Job-ready Share","common":"Most Common Path","dist":"Career Path Distribution","common_gaps":"Most Common Skill Gaps","demo":"Create Demo Candidate","lang":"Language"},
+"zh":{"proto":"职业操作系统原型 · Talentbank 技术黑客马拉松 2026","hero":"了解你适合哪里。\n看见你可以走向哪里。","body":"CareerFit AI 将个人优势、职业兴趣、技能和职业准备度转化为可解释的职业路径、行动计划和组织端人才洞察。","cand":"候选人端口","org":"组织端口","enter_c":"进入候选人端口","enter_o":"进入组织端口","back":"← 返回首页","assess":"测评","load":"加载已有档案","profile":"职业画像","paths":"职业路径","plan":"技能计划","report":"职业报告","name":"姓名","email":"邮箱","uni":"大学","major":"专业 / 研究领域","year":"毕业年份","gen":"生成并保存我的职业画像","saved":"职业画像已保存到 CareerFit 数据库。","invalid":"请输入有效姓名和邮箱。","load_btn":"加载我的职业画像","not_found":"未找到该邮箱对应的职业档案。","loaded":"已加载保存的职业档案。","complete":"请先完成测评或加载已有档案。","identity":"职业身份","ready":"职业准备度","top":"最佳匹配","fit":"最高匹配度","strengths":"核心优势","gaps":"优先技能缺口","action":"90天行动计划","org_code":"组织端访问码","org_hint":"请输入组织端访问码以查看候选人与群体数据。","no_records":"目前还没有候选人记录。","emp":"雇主视图","univ":"高校视图","pool":"人才池","jobready":"可就业","developing":"发展中","intervention":"需要干预","matches":"候选人匹配","records":"候选人记录","avg":"平均准备度","share":"可就业比例","common":"最常见路径","dist":"职业路径分布","common_gaps":"最常见技能缺口","demo":"创建模拟候选人","lang":"语言"},
+"ms":{"proto":"Prototaip Career OS · Talentbank Tech Hackathon 2026","hero":"Ketahui kesesuaian anda.\nLihat hala tuju kerjaya anda.","body":"CareerFit AI menukar kekuatan kerja, minat kerjaya, kemahiran dan kesediaan kerjaya kepada laluan kerjaya yang boleh dijelaskan, pelan tindakan dan cerapan bakat organisasi.","cand":"Portal Calon","org":"Portal Organisasi","enter_c":"Masuk Portal Calon","enter_o":"Masuk Portal Organisasi","back":"← Kembali ke Laman Utama","assess":"Penilaian","load":"Muat Profil Sedia Ada","profile":"Profil Kerjaya","paths":"Laluan Kerjaya","plan":"Pelan Kemahiran","report":"Laporan Kerjaya","name":"Nama penuh","email":"Emel","uni":"Universiti","major":"Bidang pengajian","year":"Tahun graduasi","gen":"Jana dan Simpan Profil Kerjaya Saya","saved":"Profil telah disimpan ke pangkalan data CareerFit.","invalid":"Masukkan nama dan emel yang sah.","load_btn":"Muat Profil Kerjaya Saya","not_found":"Tiada profil tersimpan ditemui untuk emel ini.","loaded":"Profil tersimpan telah dimuat.","complete":"Lengkapkan penilaian atau muat profil sedia ada.","identity":"Identiti Kerjaya","ready":"Kesediaan Kerjaya","top":"Padanan Terbaik","fit":"Skor Padanan","strengths":"Kekuatan Teras","gaps":"Jurang Kemahiran Utama","action":"Pelan Tindakan 90 Hari","org_code":"Kod akses organisasi","org_hint":"Masukkan kod akses organisasi untuk melihat data calon dan kohort.","no_records":"Tiada rekod calon tersedia.","emp":"Paparan Majikan","univ":"Paparan Universiti","pool":"Kumpulan Bakat","jobready":"Sedia Kerja","developing":"Sedang Membangun","intervention":"Perlu Intervensi","matches":"Padanan Calon","records":"Rekod Calon","avg":"Purata Kesediaan","share":"Peratus Sedia Kerja","common":"Laluan Paling Lazim","dist":"Taburan Laluan Kerjaya","common_gaps":"Jurang Kemahiran Lazim","demo":"Cipta Calon Demo","lang":"Bahasa"}}
+if "lang" not in st.session_state: st.session_state.lang="en"
+def tr(k): return TXT[st.session_state.lang].get(k,TXT["en"].get(k,k))
+
+ROLES={
+"Business Analyst":{"salary":"RM 3,500–5,500 / month","time":"4–6 months","w":{"a":.25,"s":.20,"c":.15,"d":.20,"e":.10,"r":.10},"g":["SQL","Dashboard storytelling","Business requirements"],"n":"Build a small business dashboard and explain the problem, metric and recommendation."},
+"Data Analyst":{"salary":"RM 3,200–5,000 / month","time":"5–7 months","w":{"a":.30,"s":.15,"c":.08,"d":.30,"e":.05,"r":.12},"g":["SQL","Python","Portfolio evidence"],"n":"Complete one public-data project and present three actionable findings."},
+"Product Operations Associate":{"salary":"RM 3,500–5,200 / month","time":"3–5 months","w":{"a":.12,"s":.25,"c":.22,"d":.10,"e":.18,"r":.13},"g":["Product metrics","Process mapping","Cross-functional execution"],"n":"Map one product workflow and define three operational KPIs."},
+"UX Research Assistant":{"salary":"RM 3,200–4,800 / month","time":"4–6 months","w":{"a":.18,"s":.10,"c":.25,"d":.08,"e":.14,"r":.25},"g":["Interview synthesis","Journey mapping","Portfolio case study"],"n":"Interview five users and convert findings into a journey map."}}
+
+
+FEATURED_JOBS = [
+    {
+        "tag": "🔥 High-Demand",
+        "role": "Data Analyst",
+        "company": "FinTech Growth Lab",
+        "location": "Kuala Lumpur",
         "salary": "RM 3,500–5,200 / month",
-        "time": "3–5 months",
-        "weights": {"analytical": 0.12, "structure": 0.25, "communication": 0.22, "data": 0.10, "enterprise": 0.18, "readiness": 0.13},
-        "gaps": ["Product metrics", "Process mapping", "Cross-functional execution"],
-        "next": "Map one product workflow and define three operational KPIs.",
+        "urgency": "24 openings",
+        "match": "Strong fit for analytical profiles",
+        "skills": ["SQL", "Excel", "Dashboarding"]
     },
-    "UX Research Assistant": {
-        "salary": "RM 3,200–4,800 / month",
-        "time": "4–6 months",
-        "weights": {"analytical": 0.18, "structure": 0.10, "communication": 0.25, "data": 0.08, "enterprise": 0.14, "readiness": 0.25},
-        "gaps": ["Interview synthesis", "Journey mapping", "Portfolio case study"],
-        "next": "Interview five users and convert the findings into a one-page journey map.",
+    {
+        "tag": "🔥 High-Demand",
+        "role": "Business Analyst",
+        "company": "Regional Consulting Partner",
+        "location": "Selangor",
+        "salary": "RM 3,800–5,800 / month",
+        "urgency": "18 openings",
+        "match": "Strong fit for structured problem-solvers",
+        "skills": ["Requirements analysis", "Communication", "Power BI"]
     },
-    "Talent Development Associate": {
-        "salary": "RM 3,000–4,800 / month",
-        "time": "3–5 months",
-        "weights": {"analytical": 0.08, "structure": 0.14, "communication": 0.30, "data": 0.06, "enterprise": 0.18, "readiness": 0.24},
-        "gaps": ["Facilitation", "Learning evaluation", "Stakeholder engagement"],
-        "next": "Design a short graduate development workshop with measurable learning outcomes.",
+    {
+        "tag": "⚡ Urgently Hiring",
+        "role": "Product Operations Associate",
+        "company": "Digital Platform Startup",
+        "location": "Hybrid · Malaysia",
+        "salary": "RM 3,300–5,000 / month",
+        "urgency": "Interviewing this week",
+        "match": "Good fit for organised and execution-oriented candidates",
+        "skills": ["Process mapping", "Metrics", "Coordination"]
     },
-}
+    {
+        "tag": "⚡ Urgently Hiring",
+        "role": "Graduate Talent Associate",
+        "company": "Employer Branding Agency",
+        "location": "Petaling Jaya",
+        "salary": "RM 3,000–4,500 / month",
+        "urgency": "Immediate intake",
+        "match": "Good fit for people-centred profiles",
+        "skills": ["Communication", "Event support", "Candidate engagement"]
+    },
+]
 
-def top_nav() -> None:
-    st.markdown(
-        '<div class="navbar"><div class="brand">🧭 CareerFit AI</div>'
-        '<div class="muted">Career OS prototype · Talentbank Tech Hackathon 2026</div></div>',
-        unsafe_allow_html=True,
-    )
-
-def get_supabase() -> Client | None:
-    try:
-        url = st.secrets["SUPABASE_URL"]
-        key = st.secrets["SUPABASE_KEY"]
-        return create_client(url, key)
-    except Exception:
-        return None
-
-db = get_supabase()
-
-def go(view: str) -> None:
-    st.session_state.view = view
-    st.rerun()
-
-def mean100(values: list[int]) -> float:
-    return float(np.mean(values) / 5 * 100)
-
-def calculate_profile(answers: dict[str, Any]) -> dict[str, Any]:
-    analytical = mean100([
-        answers["strengths"]["analyse_complex"],
-        answers["interests"]["analyse_data"],
-        answers["skills"]["problem_solving"],
-        answers["skills"]["research"],
-    ])
-    structure = mean100([
-        answers["strengths"]["structured_plans"],
-        answers["interests"]["organise_processes"],
-        answers["skills"]["project_coordination"],
-    ])
-    communication = mean100([
-        answers["strengths"]["people_energy"],
-        answers["interests"]["help_people"],
-        answers["skills"]["communication"],
-        answers["skills"]["presentation"],
-        answers["skills"]["writing"],
-    ])
-    data = mean100([
-        answers["interests"]["analyse_data"],
-        answers["skills"]["data_analysis"],
-        answers["skills"]["digital_tools"],
-        answers["skills"]["research"],
-    ])
-    enterprise = mean100([
-        answers["interests"]["lead_initiatives"],
-        answers["values"]["leadership"],
-        answers["values"]["autonomy"],
-        answers["strengths"]["new_solutions"],
-    ])
-    readiness = mean100(list(answers["readiness"].values()))
-
-    dimensions = {
-        "analytical": analytical,
-        "structure": structure,
-        "communication": communication,
-        "data": data,
-        "enterprise": enterprise,
-        "readiness": readiness,
-    }
-
-    scores = {}
-    for role, role_info in ROLE_LIBRARY.items():
-        raw = sum(dimensions[k] * w for k, w in role_info["weights"].items())
-        scores[role] = int(round(min(97, max(55, raw))))
-
-    ranked = sorted(scores.items(), key=lambda x: x[1], reverse=True)[:3]
-
-    if analytical >= 78 and structure >= 68:
-        identity = "Analytical Strategist"
-    elif communication >= 78 and enterprise >= 65:
-        identity = "People-Centred Builder"
-    elif data >= 78:
-        identity = "Evidence-Driven Explorer"
-    elif structure >= 76:
-        identity = "Structured Operations Planner"
-    else:
-        identity = "Adaptive Problem Solver"
-
-    skill_map = answers["skills"]
-    skill_labels = {
-        "communication": "Communication",
-        "data_analysis": "Data analysis",
-        "problem_solving": "Problem solving",
-        "presentation": "Presentation",
-        "digital_tools": "Digital tools",
-        "writing": "Writing",
-        "project_coordination": "Project coordination",
-        "research": "Research",
-    }
-    strengths = [skill_labels[k] for k, v in sorted(skill_map.items(), key=lambda x: x[1], reverse=True)[:4]]
-    weak_skills = [skill_labels[k] for k, v in sorted(skill_map.items(), key=lambda x: x[1])[:3]]
-    role_gaps = ROLE_LIBRARY[ranked[0][0]]["gaps"]
-    gaps = list(dict.fromkeys(role_gaps + weak_skills))[:5]
-
-    roadmap = [
-        {"period": "Week 1–2", "title": "Clarify the target role", "action": f"Review 10 {ranked[0][0]} vacancies and identify repeated requirements."},
-        {"period": "Week 3–5", "title": "Close the priority gap", "action": f"Develop {gaps[0]} through a focused short course and one applied exercise."},
-        {"period": "Week 6–8", "title": "Create portfolio evidence", "action": ROLE_LIBRARY[ranked[0][0]]["next"]},
-        {"period": "Week 9–12", "title": "Apply and prepare", "action": "Apply to 20 aligned roles and prepare six STAR interview stories."},
-    ]
-
-    return {
-        "career_identity": identity,
-        "readiness_score": int(round(readiness)),
-        "ranked_roles": ranked,
-        "strengths": strengths,
-        "skill_gaps": gaps,
-        "roadmap": roadmap,
-        "dimensions": dimensions,
-    }
-
-def save_candidate(profile_data: dict[str, Any], answers: dict[str, Any]) -> tuple[bool, str]:
-    if db is None:
-        return False, "Database connection is not available. Check Streamlit Secrets."
-    ranked = profile_data["ranked_roles"]
-    record = {
-        "name": st.session_state.candidate["name"].strip(),
-        "email": st.session_state.candidate["email"].strip().lower(),
-        "university": st.session_state.candidate["university"].strip(),
-        "major": st.session_state.candidate["major"].strip(),
-        "graduation_year": int(st.session_state.candidate["graduation_year"]),
-        "career_identity": profile_data["career_identity"],
-        "readiness_score": profile_data["readiness_score"],
-        "top_role": ranked[0][0],
-        "top_role_score": ranked[0][1],
-        "second_role": ranked[1][0],
-        "second_role_score": ranked[1][1],
-        "third_role": ranked[2][0],
-        "third_role_score": ranked[2][1],
-        "strengths": {"items": profile_data["strengths"], "dimensions": profile_data["dimensions"]},
-        "interests": answers["interests"],
-        "skills": answers["skills"],
-        "work_values": answers["values"],
-        "readiness_answers": answers["readiness"],
-        "skill_gaps": profile_data["skill_gaps"],
-        "roadmap": profile_data["roadmap"],
-        "updated_at": datetime.utcnow().isoformat(),
-    }
-    try:
-        db.table("candidates").upsert(record, on_conflict="email").execute()
-        return True, "Profile saved to the CareerFit database."
-    except Exception as exc:
-        return False, f"Database save failed: {exc}"
-
-def load_candidate(email: str) -> dict[str, Any] | None:
-    if db is None or not email.strip():
-        return None
-    try:
-        response = db.table("candidates").select("*").eq("email", email.strip().lower()).limit(1).execute()
-        return response.data[0] if response.data else None
-    except Exception:
-        return None
-
-def all_candidates() -> pd.DataFrame:
-    if db is None:
-        return pd.DataFrame()
-    try:
-        response = db.table("candidates").select("*").order("updated_at", desc=True).execute()
-        return pd.DataFrame(response.data or [])
-    except Exception:
-        return pd.DataFrame()
-
-if "view" not in st.session_state:
-    st.session_state.view = "home"
-if "candidate" not in st.session_state:
-    st.session_state.candidate = {
-        "name": "",
-        "email": "",
-        "university": "",
-        "major": "",
-        "graduation_year": 2026,
-    }
-if "answers" not in st.session_state:
-    st.session_state.answers = {}
-if "profile" not in st.session_state:
-    st.session_state.profile = None
-if "loaded_record" not in st.session_state:
-    st.session_state.loaded_record = None
-
-def render_home() -> None:
-    top_nav()
-    st.markdown(
-        """
-<div class="hero">
-<div class="eyebrow">Career intelligence for graduates and organisations</div>
-<h1>Know where you fit.<br>See where you can go.</h1>
-<p>CareerFit AI converts personal strengths, career interests, skills and readiness into explainable career pathways, actionable development plans and organisation-level talent insights.</p>
+def featured_jobs_section(title: str = "Featured Opportunities"):
+    st.markdown(f"### {title}")
+    st.caption("Simulated job advertising area for the hackathon prototype. In production, this area can connect to Talentbank job listings or employer campaigns.")
+    cols = st.columns(2)
+    for i, job in enumerate(FEATURED_JOBS):
+        with cols[i % 2]:
+            st.markdown(
+                f"""
+<div class="role-card" style="margin-bottom:1rem">
+    <div class="eyebrow" style="color:#8a6b2f">{job['tag']}</div>
+    <h3 style="margin-bottom:.2rem">{job['role']}</h3>
+    <p class="muted">{job['company']} · {job['location']}</p>
+    <p><b>{job['salary']}</b></p>
+    <p><b>Status:</b> {job['urgency']}</p>
+    <p><b>Why shown:</b> {job['match']}</p>
+    <p><b>Key skills:</b> {", ".join(job['skills'])}</p>
 </div>
 """,
-        unsafe_allow_html=True,
-    )
-    c1, c2 = st.columns(2)
+                unsafe_allow_html=True,
+            )
+
+
+def db():
+    try: return create_client(st.secrets["SUPABASE_URL"], st.secrets["SUPABASE_KEY"])
+    except Exception: return None
+DB=db()
+def nav():
+    c1,c2=st.columns([3,1])
     with c1:
-        st.markdown(
-            """<div class="card"><div class="eyebrow" style="color:#8a6b2f">Candidate Portal</div>
-<h3>Create your own career profile</h3><p class="muted">Enter your details, complete the assessment, generate personalised role matches and save your profile.</p>
-<span class="badge">Dynamic scoring</span><span class="badge">Saved profile</span><span class="badge">90-day plan</span></div>""",
-            unsafe_allow_html=True,
-        )
-        if st.button("Enter Candidate Portal", use_container_width=True):
-            go("candidate")
+        st.markdown(f'<div class="brand">🧭 CareerFit AI</div><div class="muted">{tr("proto")}</div>',unsafe_allow_html=True)
     with c2:
-        st.markdown(
-            """<div class="card"><div class="eyebrow" style="color:#8a6b2f">Organisation Portal</div>
-<h3>Use real candidate data for decisions</h3><p class="muted">Review candidate-role fit, readiness, talent-pool patterns and university-level skill gaps.</p>
-<span class="badge">Employer view</span><span class="badge">University view</span><span class="badge">Database analytics</span></div>""",
-            unsafe_allow_html=True,
-        )
-        if st.button("Enter Organisation Portal", use_container_width=True):
-            go("organisation")
+        choice=st.selectbox(tr("lang"),list(LANGS.keys()),index=list(LANGS.values()).index(st.session_state.lang))
+        st.session_state.lang=LANGS[choice]
+def go(v): st.session_state.view=v; st.rerun()
+def m(vals): return float(np.mean(vals)/5*100)
+def calc(ans):
+    dims={"a":m([ans["str"]["analyse"],ans["int"]["data"],ans["skill"]["problem"],ans["skill"]["research"]]),"s":m([ans["str"]["plan"],ans["int"]["organise"],ans["skill"]["coord"]]),"c":m([ans["str"]["people"],ans["int"]["help"],ans["skill"]["comm"],ans["skill"]["present"],ans["skill"]["write"]]),"d":m([ans["int"]["data"],ans["skill"]["data"],ans["skill"]["digital"],ans["skill"]["research"]]),"e":m([ans["int"]["lead"],ans["val"]["leadership"],ans["val"]["autonomy"],ans["str"]["create"]]),"r":m(list(ans["ready"].values()))}
+    scores={role:int(round(min(97,max(55,sum(dims[k]*w for k,w in info["w"].items()))))) for role,info in ROLES.items()}
+    ranked=sorted(scores.items(),key=lambda x:x[1],reverse=True)[:3]
+    identity="Analytical Strategist" if dims["a"]>=78 and dims["s"]>=68 else "Evidence-Driven Explorer" if dims["d"]>=78 else "Adaptive Problem Solver"
+    strengths=["Problem solving","Communication","Research","Data analysis"]
+    gaps=list(dict.fromkeys(ROLES[ranked[0][0]]["g"]+["Portfolio evidence"]))[:5]
+    roadmap=[{"period":"Week 1–2","title":"Clarify target role","action":f"Review 10 {ranked[0][0]} vacancies."},{"period":"Week 3–5","title":"Close priority gap","action":f"Develop {gaps[0]} with one applied exercise."},{"period":"Week 6–8","title":"Create portfolio evidence","action":ROLES[ranked[0][0]]["n"]},{"period":"Week 9–12","title":"Apply and prepare","action":"Apply to 20 aligned roles and prepare six STAR stories."}]
+    return {"identity":identity,"readiness":int(round(dims["r"])),"ranked":ranked,"strengths":strengths,"gaps":gaps,"roadmap":roadmap,"dims":dims}
+def save(prof,ans):
+    if DB is None: return False,"Database connection is not available."
+    r=prof["ranked"]; c=st.session_state.candidate
+    rec={"name":c["name"],"email":c["email"].lower(),"university":c["university"],"major":c["major"],"graduation_year":int(c["year"]),"career_identity":prof["identity"],"readiness_score":prof["readiness"],"top_role":r[0][0],"top_role_score":r[0][1],"second_role":r[1][0],"second_role_score":r[1][1],"third_role":r[2][0],"third_role_score":r[2][1],"strengths":{"items":prof["strengths"],"dimensions":prof["dims"]},"interests":ans["int"],"skills":ans["skill"],"work_values":ans["val"],"readiness_answers":ans["ready"],"skill_gaps":prof["gaps"],"roadmap":prof["roadmap"],"updated_at":datetime.utcnow().isoformat()}
+    try: DB.table("candidates").upsert(rec,on_conflict="email").execute(); return True,tr("saved")
+    except Exception as e: return False,f"Database save failed: {e}"
+def load(email):
+    if DB is None: return None
+    try:
+        res=DB.table("candidates").select("*").eq("email",email.lower().strip()).limit(1).execute()
+        return res.data[0] if res.data else None
+    except Exception: return None
+def allc():
+    if DB is None: return pd.DataFrame()
+    try: return pd.DataFrame(DB.table("candidates").select("*").order("updated_at",desc=True).execute().data or [])
+    except Exception: return pd.DataFrame()
 
-def assessment_form() -> None:
-    st.markdown("### Create Your Career Profile")
-    with st.form("candidate_assessment"):
-        c1, c2 = st.columns(2)
-        with c1:
-            name = st.text_input("Full name", value=st.session_state.candidate["name"])
-            email = st.text_input("Email", value=st.session_state.candidate["email"])
-            university = st.text_input("University", value=st.session_state.candidate["university"])
-        with c2:
-            major = st.text_input("Major / field of study", value=st.session_state.candidate["major"])
-            graduation_year = st.number_input("Graduation year", min_value=2020, max_value=2035, value=int(st.session_state.candidate["graduation_year"]))
+if "view" not in st.session_state: st.session_state.view="home"
+if "candidate" not in st.session_state: st.session_state.candidate={"name":"","email":"","university":"","major":"","year":2026}
+if "profile" not in st.session_state: st.session_state.profile=None
+if "record" not in st.session_state: st.session_state.record=None
 
-        st.markdown("#### 1. Work Strengths")
-        s1 = st.slider("I enjoy analysing complex information.", 1, 5, 4)
-        s2 = st.slider("I prefer turning ideas into structured plans.", 1, 5, 4)
-        s3 = st.slider("I gain energy from working with people.", 1, 5, 3)
-        s4 = st.slider("I enjoy creating new solutions.", 1, 5, 4)
-        s5 = st.slider("I stay calm when decisions are uncertain.", 1, 5, 3)
+def demo():
+    st.session_state.candidate={"name":"Chen Test","email":"chentest2026@example.com","university":"Universiti Pendidikan Sultan Idris","major":"Business Analytics","year":2026}
+    ans={"str":{"analyse":5,"plan":4,"people":3,"create":4,"uncertain":3},"int":{"data":5,"help":3,"lead":4,"creative":3,"organise":4},"skill":{"comm":4,"data":4,"problem":5,"present":3,"digital":4,"write":4,"coord":3,"research":4},"val":{"growth":5,"stability":3,"income":4,"impact":4,"autonomy":4,"leadership":3},"ready":{"resume":4,"interview":3,"portfolio":2,"clarity":4,"search":3}}
+    prof=calc(ans); st.session_state.profile=prof; return save(prof,ans)
 
-        st.markdown("#### 2. Career Interests")
-        i1 = st.slider("Analysing data and solving problems", 1, 5, 5)
-        i2 = st.slider("Helping, teaching or supporting people", 1, 5, 3)
-        i3 = st.slider("Leading initiatives and influencing decisions", 1, 5, 4)
-        i4 = st.slider("Creating content, designs or new ideas", 1, 5, 3)
-        i5 = st.slider("Organising processes and managing details", 1, 5, 4)
-
-        st.markdown("#### 3. Current Skills")
-        c1, c2 = st.columns(2)
-        with c1:
-            k1 = st.slider("Communication", 1, 5, 4)
-            k2 = st.slider("Data analysis", 1, 5, 3)
-            k3 = st.slider("Problem solving", 1, 5, 4)
-            k4 = st.slider("Presentation", 1, 5, 3)
-        with c2:
-            k5 = st.slider("Digital tools", 1, 5, 3)
-            k6 = st.slider("Writing", 1, 5, 4)
-            k7 = st.slider("Project coordination", 1, 5, 3)
-            k8 = st.slider("Research", 1, 5, 4)
-
-        st.markdown("#### 4. Work Values")
-        v1 = st.slider("Growth", 1, 5, 5)
-        v2 = st.slider("Stability", 1, 5, 3)
-        v3 = st.slider("Income", 1, 5, 4)
-        v4 = st.slider("Impact", 1, 5, 4)
-        v5 = st.slider("Autonomy", 1, 5, 4)
-        v6 = st.slider("Leadership", 1, 5, 3)
-
-        st.markdown("#### 5. Career Readiness")
-        r1 = st.slider("Resume readiness", 1, 5, 3)
-        r2 = st.slider("Interview confidence", 1, 5, 3)
-        r3 = st.slider("Portfolio evidence", 1, 5, 2)
-        r4 = st.slider("Role clarity", 1, 5, 4)
-        r5 = st.slider("Job-search consistency", 1, 5, 3)
-
-        submitted = st.form_submit_button("Generate and Save My Career Profile", use_container_width=True)
-
-    if submitted:
-        if not name.strip() or not email.strip() or "@" not in email:
-            st.error("Enter a valid name and email.")
-            return
-        st.session_state.candidate = {
-            "name": name,
-            "email": email,
-            "university": university,
-            "major": major,
-            "graduation_year": int(graduation_year),
-        }
-        answers = {
-            "strengths": {
-                "analyse_complex": s1,
-                "structured_plans": s2,
-                "people_energy": s3,
-                "new_solutions": s4,
-                "uncertainty": s5,
-            },
-            "interests": {
-                "analyse_data": i1,
-                "help_people": i2,
-                "lead_initiatives": i3,
-                "creative_work": i4,
-                "organise_processes": i5,
-            },
-            "skills": {
-                "communication": k1,
-                "data_analysis": k2,
-                "problem_solving": k3,
-                "presentation": k4,
-                "digital_tools": k5,
-                "writing": k6,
-                "project_coordination": k7,
-                "research": k8,
-            },
-            "values": {
-                "growth": v1,
-                "stability": v2,
-                "income": v3,
-                "impact": v4,
-                "autonomy": v5,
-                "leadership": v6,
-            },
-            "readiness": {
-                "resume": r1,
-                "interview": r2,
-                "portfolio": r3,
-                "role_clarity": r4,
-                "job_search": r5,
-            },
-        }
-        profile = calculate_profile(answers)
-        st.session_state.answers = answers
-        st.session_state.profile = profile
-        ok, message = save_candidate(profile, answers)
-        if ok:
-            st.success(message)
-        else:
-            st.warning(message)
-        st.info("Open the Career Profile and Career Pathways tabs to review the personalised results.")
-
-def render_loaded_profile(record: dict[str, Any]) -> None:
-    st.markdown(f"### {record.get('name', 'Candidate')}")
-    st.caption(f"{record.get('major') or 'Graduate'} · {record.get('university') or 'University not provided'}")
-    c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Career Identity", record.get("career_identity") or "—")
-    c2.metric("Career Readiness", f"{record.get('readiness_score') or 0}/100")
-    c3.metric("Top Match", record.get("top_role") or "—")
-    c4.metric("Top Fit", f"{int(record.get('top_role_score') or 0)}%")
-    strengths = record.get("strengths") or {}
-    strength_items = strengths.get("items", []) if isinstance(strengths, dict) else []
-    if strength_items:
-        st.markdown("#### Core Strengths")
-        st.markdown("".join(f'<span class="badge">{x}</span>' for x in strength_items), unsafe_allow_html=True)
-    st.markdown(
-        """<div class="gold-card"><h4>How this profile was generated</h4>
-<p>CareerFit AI compares five assessment dimensions with transparent role requirements. It generates relative fit scores, identifies priority gaps and produces an action plan.</p>
-<p class="muted"><small>This prototype supports exploration and should not be treated as a deterministic employment decision.</small></p></div>""",
-        unsafe_allow_html=True,
-    )
-
-def render_candidate() -> None:
-    top_nav()
-    if st.button("← Back to Home"):
-        go("home")
-    st.markdown("## Candidate Portal")
-    tabs = st.tabs(["Assessment", "Load Existing Profile", "Career Profile", "Career Pathways", "Skill Plan", "Career Report"])
-
+def home():
+    nav()
+    st.markdown(f'<div class="hero"><div class="eyebrow">{tr("cand")} / {tr("org")}</div><h1>{tr("hero")}</h1><p>{tr("body")}</p></div>',unsafe_allow_html=True)
+    featured_jobs_section("Featured Opportunities: High-Demand and Urgently Hiring Roles")
+    st.divider()
+    c1,c2=st.columns(2)
+    with c1:
+        st.markdown(f'<div class="card"><h3>{tr("cand")}</h3><p class="muted">{TXT[st.session_state.lang]["candidate_card_body"] if "candidate_card_body" in TXT[st.session_state.lang] else ""}</p></div>',unsafe_allow_html=True)
+        if st.button(tr("enter_c"),use_container_width=True): go("candidate")
+    with c2:
+        st.markdown(f'<div class="card"><h3>{tr("org")}</h3><p class="muted">{TXT[st.session_state.lang]["org_card_body"] if "org_card_body" in TXT[st.session_state.lang] else ""}</p></div>',unsafe_allow_html=True)
+        if st.button(tr("enter_o"),use_container_width=True): go("org")
+def candidate():
+    nav()
+    if st.button(tr("back")): go("home")
+    st.markdown(f"## {tr('cand')}")
+    tabs=st.tabs([tr("assess"),tr("load"),tr("profile"),tr("paths"),"Featured Jobs",tr("plan"),tr("report")])
     with tabs[0]:
-        assessment_form()
-
+        if st.button(tr("demo"),use_container_width=True):
+            ok,msg=demo(); st.success(msg) if ok else st.warning(msg)
+        st.divider()
+        with st.form("f"):
+            c1,c2=st.columns(2)
+            with c1:
+                name=st.text_input(tr("name"),st.session_state.candidate["name"]); email=st.text_input(tr("email"),st.session_state.candidate["email"]); uni=st.text_input(tr("uni"),st.session_state.candidate["university"])
+            with c2:
+                major=st.text_input(tr("major"),st.session_state.candidate["major"]); year=st.number_input(tr("year"),2020,2035,int(st.session_state.candidate["year"]))
+            st.markdown(f"#### {tr('strengths')}")
+            s1=st.slider("I enjoy analysing complex information.",1,5,4); s2=st.slider("I prefer turning ideas into structured plans.",1,5,4); s3=st.slider("I gain energy from working with people.",1,5,3); s4=st.slider("I enjoy creating new solutions.",1,5,4); s5=st.slider("I stay calm when decisions are uncertain.",1,5,3)
+            st.markdown("#### Interests / 兴趣 / Minat")
+            i1=st.slider("Analysing data and solving problems",1,5,5); i2=st.slider("Helping, teaching or supporting people",1,5,3); i3=st.slider("Leading initiatives and influencing decisions",1,5,4); i4=st.slider("Creating content, designs or new ideas",1,5,3); i5=st.slider("Organising processes and managing details",1,5,4)
+            st.markdown("#### Skills / 技能 / Kemahiran")
+            k1=st.slider("Communication",1,5,4); k2=st.slider("Data analysis",1,5,3); k3=st.slider("Problem solving",1,5,4); k4=st.slider("Presentation",1,5,3); k5=st.slider("Digital tools",1,5,3); k6=st.slider("Writing",1,5,4); k7=st.slider("Project coordination",1,5,3); k8=st.slider("Research",1,5,4)
+            st.markdown("#### Values & Readiness")
+            v1=st.slider("Growth",1,5,5); v2=st.slider("Stability",1,5,3); v3=st.slider("Income",1,5,4); v4=st.slider("Impact",1,5,4); v5=st.slider("Autonomy",1,5,4); v6=st.slider("Leadership",1,5,3)
+            r1=st.slider("Resume readiness",1,5,3); r2=st.slider("Interview confidence",1,5,3); r3=st.slider("Portfolio evidence",1,5,2); r4=st.slider("Role clarity",1,5,4); r5=st.slider("Job-search consistency",1,5,3)
+            sub=st.form_submit_button(tr("gen"),use_container_width=True)
+        if sub:
+            if not name or "@" not in email: st.error(tr("invalid")); return
+            st.session_state.candidate={"name":name,"email":email,"university":uni,"major":major,"year":year}
+            ans={"str":{"analyse":s1,"plan":s2,"people":s3,"create":s4,"uncertain":s5},"int":{"data":i1,"help":i2,"lead":i3,"creative":i4,"organise":i5},"skill":{"comm":k1,"data":k2,"problem":k3,"present":k4,"digital":k5,"write":k6,"coord":k7,"research":k8},"val":{"growth":v1,"stability":v2,"income":v3,"impact":v4,"autonomy":v5,"leadership":v6},"ready":{"resume":r1,"interview":r2,"portfolio":r3,"clarity":r4,"search":r5}}
+            prof=calc(ans); st.session_state.profile=prof; ok,msg=save(prof,ans); st.success(msg) if ok else st.warning(msg)
     with tabs[1]:
-        st.markdown("### Load a Saved Profile")
-        load_email = st.text_input("Email used for the assessment", key="load_email")
-        if st.button("Load My Career Profile"):
-            record = load_candidate(load_email)
-            if record:
-                st.session_state.loaded_record = record
-                st.session_state.candidate = {
-                    "name": record.get("name", ""),
-                    "email": record.get("email", ""),
-                    "university": record.get("university", ""),
-                    "major": record.get("major", ""),
-                    "graduation_year": record.get("graduation_year") or 2026,
-                }
-                st.success("Saved profile loaded.")
-            else:
-                st.error("No saved profile was found for this email.")
-
-    record = st.session_state.loaded_record
-    profile = st.session_state.profile
-
+        em=st.text_input(tr("email"),key="load_email")
+        if st.button(tr("load_btn")):
+            rec=load(em); st.session_state.record=rec
+            st.success(tr("loaded")) if rec else st.error(tr("not_found"))
     with tabs[2]:
-        if profile:
-            ranked = profile["ranked_roles"]
-            c1, c2, c3, c4 = st.columns(4)
-            c1.metric("Career Identity", profile["career_identity"])
-            c2.metric("Career Readiness", f"{profile['readiness_score']}/100")
-            c3.metric("Top Match", ranked[0][0])
-            c4.metric("Top Fit", f"{ranked[0][1]}%")
-            st.markdown("#### Core Strengths")
-            st.markdown("".join(f'<span class="badge">{x}</span>' for x in profile["strengths"]), unsafe_allow_html=True)
-        elif record:
-            render_loaded_profile(record)
+        prof=st.session_state.profile; rec=st.session_state.record
+        if not prof and not rec: st.info(tr("complete")); return
+        if prof:
+            r=prof["ranked"]; c1,c2,c3,c4=st.columns(4); c1.metric(tr("identity"),prof["identity"]); c2.metric(tr("ready"),f'{prof["readiness"]}/100'); c3.metric(tr("top"),r[0][0]); c4.metric(tr("fit"),f'{r[0][1]}%')
+            st.markdown("".join(f'<span class="badge">{x}</span>' for x in prof["strengths"]),unsafe_allow_html=True)
         else:
-            st.info("Complete the assessment or load an existing profile.")
-
+            c1,c2,c3,c4=st.columns(4); c1.metric(tr("identity"),rec.get("career_identity")); c2.metric(tr("ready"),f'{rec.get("readiness_score")}/100'); c3.metric(tr("top"),rec.get("top_role")); c4.metric(tr("fit"),f'{int(rec.get("top_role_score") or 0)}%')
     with tabs[3]:
-        if profile:
-            ranked = profile["ranked_roles"]
-        elif record:
-            ranked = [
-                (record.get("top_role"), int(record.get("top_role_score") or 0)),
-                (record.get("second_role"), int(record.get("second_role_score") or 0)),
-                (record.get("third_role"), int(record.get("third_role_score") or 0)),
-            ]
-        else:
-            ranked = []
-
-        if not ranked:
-            st.info("Complete the assessment or load a saved profile.")
-        else:
-            st.markdown("### Personalised Career Pathways")
-            for role, score in ranked:
-                info = ROLE_LIBRARY.get(role, {})
-                st.markdown(
-                    f"""<div class="role-card" style="margin-bottom:1rem">
-<div style="display:flex;justify-content:space-between"><div><h3>{role}</h3>
-<div class="muted">{info.get('salary','')} · {info.get('time','')} preparation</div></div>
-<div class="score">{score}% fit</div></div>
-<p><b>Priority gaps:</b> {", ".join(info.get('gaps', []))}</p>
-<p><b>Next best move:</b> {info.get('next','')}</p></div>""",
-                    unsafe_allow_html=True,
-                )
-
+        prof=st.session_state.profile; rec=st.session_state.record
+        ranked=prof["ranked"] if prof else ([(rec.get("top_role"),int(rec.get("top_role_score") or 0)),(rec.get("second_role"),int(rec.get("second_role_score") or 0)),(rec.get("third_role"),int(rec.get("third_role_score") or 0))] if rec else [])
+        if not ranked: st.info(tr("complete")); return
+        for role,score in ranked:
+            info=ROLES.get(role,{})
+            st.markdown(f'<div class="role-card" style="margin-bottom:1rem"><h3>{role} <span class="score">{score}%</span></h3><p class="muted">{info.get("salary","")} · {info.get("time","")}</p><p><b>{tr("gaps")}:</b> {", ".join(info.get("g",[]))}</p><p><b>Next:</b> {info.get("n","")}</p></div>',unsafe_allow_html=True)
     with tabs[4]:
-        roadmap = profile["roadmap"] if profile else (record.get("roadmap", []) if record else [])
-        gaps = profile["skill_gaps"] if profile else (record.get("skill_gaps", []) if record else [])
-        if not roadmap:
-            st.info("Complete the assessment or load a saved profile.")
-        else:
-            st.markdown("### Priority Skill Gaps")
-            st.markdown("".join(f'<span class="badge gold-badge">{x}</span>' for x in gaps), unsafe_allow_html=True)
-            st.markdown("### 90-Day Action Plan")
-            for item in roadmap:
-                st.markdown(
-                    f'<div class="soft-card" style="margin-bottom:.75rem"><div class="eyebrow" style="color:#8a6b2f">{item["period"]}</div>'
-                    f'<h4>{item["title"]}</h4><p class="muted">{item["action"]}</p></div>',
-                    unsafe_allow_html=True,
-                )
-
+        featured_jobs_section("Featured Jobs: High-Demand and Urgently Hiring Roles")
     with tabs[5]:
-        if profile:
-            ranked = profile["ranked_roles"]
-            identity = profile["career_identity"]
-            readiness = profile["readiness_score"]
-            strengths = profile["strengths"]
-            gaps = profile["skill_gaps"]
-        elif record:
-            ranked = [(record.get("top_role"), int(record.get("top_role_score") or 0))]
-            identity = record.get("career_identity")
-            readiness = record.get("readiness_score")
-            strengths_obj = record.get("strengths") or {}
-            strengths = strengths_obj.get("items", []) if isinstance(strengths_obj, dict) else []
-            gaps = record.get("skill_gaps") or []
-        else:
-            ranked = []
-
-        if not ranked:
-            st.info("Complete the assessment or load a saved profile.")
-        else:
-            report = f"""CareerFit AI Candidate Report
-Generated: {datetime.now().strftime("%Y-%m-%d %H:%M")}
-Candidate: {st.session_state.candidate["name"]}
-Email: {st.session_state.candidate["email"]}
-University: {st.session_state.candidate["university"]}
-Major: {st.session_state.candidate["major"]}
-
-Career Identity: {identity}
-Career Readiness: {readiness}/100
-Top Career Match: {ranked[0][0]} ({ranked[0][1]}%)
-
-Core Strengths:
-- """ + "\n- ".join(strengths) + """
-
-Priority Skill Gaps:
-- """ + "\n- ".join(gaps)
-            st.text_area("Report preview", report, height=340)
-            st.download_button("Download Career Report", report.encode("utf-8"), "CareerFit_AI_Report.txt", "text/plain", use_container_width=True)
-
-def render_organisation() -> None:
-    top_nav()
-    if st.button("← Back to Home"):
-        go("home")
-    st.markdown("## Organisation Portal")
-    expected = str(st.secrets.get("ORG_ACCESS_CODE", ""))
-    entered = st.text_input("Organisation access code", type="password")
-    if not expected or entered != expected:
-        st.info("Enter the organisation access code to view candidate and cohort data.")
-        return
-
-    df = all_candidates()
-    if df.empty:
-        st.warning("No candidate records are available yet.")
-        return
-
-    tabs = st.tabs(["Employer View", "University View"])
+        prof=st.session_state.profile; rec=st.session_state.record
+        roadmap=prof["roadmap"] if prof else (rec.get("roadmap",[]) if rec else [])
+        if not roadmap: st.info(tr("complete")); return
+        for item in roadmap:
+            st.markdown(f'<div class="soft-card" style="margin-bottom:.75rem"><div class="eyebrow" style="color:#8a6b2f">{item["period"]}</div><h4>{item["title"]}</h4><p class="muted">{item["action"]}</p></div>',unsafe_allow_html=True)
+    with tabs[6]:
+        st.info("Report download remains available in English for employer readability.")
+def org():
+    nav()
+    if st.button(tr("back")): go("home")
+    st.markdown(f"## {tr('org')}")
+    if st.text_input(tr("org_code"),type="password")!=str(st.secrets.get("ORG_ACCESS_CODE","")):
+        st.info(tr("org_hint")); return
+    df=allc()
+    if df.empty: st.warning(tr("no_records")); return
+    tabs=st.tabs([tr("emp"),tr("univ")])
+    readiness=pd.to_numeric(df["readiness_score"],errors="coerce").fillna(0)
     with tabs[0]:
-        total = len(df)
-        ready = int((pd.to_numeric(df["readiness_score"], errors="coerce").fillna(0) >= 75).sum())
-        developing = int(((pd.to_numeric(df["readiness_score"], errors="coerce").fillna(0) >= 50) & (pd.to_numeric(df["readiness_score"], errors="coerce").fillna(0) < 75)).sum())
-        intervention = total - ready - developing
-        c1, c2, c3, c4 = st.columns(4)
-        c1.metric("Talent Pool", total)
-        c2.metric("Job-ready", ready)
-        c3.metric("Developing", developing)
-        c4.metric("Require intervention", intervention)
-
-        display_cols = ["name", "university", "major", "top_role", "top_role_score", "readiness_score"]
-        st.markdown("### Candidate Matches")
-        st.dataframe(df[display_cols].rename(columns={
-            "name": "Candidate",
-            "university": "University",
-            "major": "Major",
-            "top_role": "Top Role",
-            "top_role_score": "Fit",
-            "readiness_score": "Readiness",
-        }), hide_index=True, use_container_width=True)
-
+        c1,c2,c3,c4=st.columns(4); c1.metric(tr("pool"),len(df)); c2.metric(tr("jobready"),int((readiness>=75).sum())); c3.metric(tr("developing"),int(((readiness>=50)&(readiness<75)).sum())); c4.metric(tr("intervention"),int((readiness<50).sum()))
+        st.dataframe(df[["name","university","major","top_role","top_role_score","readiness_score"]],use_container_width=True,hide_index=True)
     with tabs[1]:
-        readiness = pd.to_numeric(df["readiness_score"], errors="coerce").fillna(0)
-        top_role = df["top_role"].mode().iloc[0] if not df["top_role"].dropna().empty else "—"
-        c1, c2, c3, c4 = st.columns(4)
-        c1.metric("Candidate Records", len(df))
-        c2.metric("Average Readiness", f"{readiness.mean():.0f}/100")
-        c3.metric("Job-ready Share", f"{(readiness.ge(75).mean()*100):.0f}%")
-        c4.metric("Most Common Path", top_role)
-
-        role_counts = df["top_role"].value_counts().rename_axis("Career Path").reset_index(name="Candidates")
-        st.markdown("### Career Path Distribution")
-        st.dataframe(role_counts, hide_index=True, use_container_width=True)
-        st.bar_chart(role_counts.set_index("Career Path"))
-
-        all_gaps: list[str] = []
-        for item in df["skill_gaps"].dropna():
-            if isinstance(item, list):
-                all_gaps.extend(item)
-            elif isinstance(item, str):
-                try:
-                    parsed = json.loads(item)
-                    if isinstance(parsed, list):
-                        all_gaps.extend(parsed)
-                except Exception:
-                    pass
-        if all_gaps:
-            gaps_df = pd.Series(all_gaps).value_counts().head(10).rename_axis("Skill Gap").reset_index(name="Candidates")
-            st.markdown("### Most Common Skill Gaps")
-            st.dataframe(gaps_df, hide_index=True, use_container_width=True)
-
-def main() -> None:
-    routes = {"home": render_home, "candidate": render_candidate, "organisation": render_organisation}
-    routes.get(st.session_state.view, render_home)()
-
-main()
+        top=df["top_role"].mode().iloc[0] if not df["top_role"].dropna().empty else "—"
+        c1,c2,c3,c4=st.columns(4); c1.metric(tr("records"),len(df)); c2.metric(tr("avg"),f"{readiness.mean():.0f}/100"); c3.metric(tr("share"),f"{readiness.ge(75).mean()*100:.0f}%"); c4.metric(tr("common"),top)
+        vc=df["top_role"].value_counts().rename_axis("Career Path").reset_index(name="Candidates"); st.dataframe(vc,use_container_width=True,hide_index=True); st.bar_chart(vc.set_index("Career Path"))
+routes={"home":home,"candidate":candidate,"org":org}
+routes.get(st.session_state.view,home)()
