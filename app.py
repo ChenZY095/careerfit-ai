@@ -35,6 +35,119 @@ TXT={
 if "lang" not in st.session_state: st.session_state.lang="en"
 def tr(k): return TXT[st.session_state.lang].get(k,TXT["en"].get(k,k))
 
+
+QUESTION_TEXT = {
+    "en": {
+        "core_strengths_section": "Work Strengths",
+        "interests_section": "Career Interests",
+        "skills_section": "Current Skills",
+        "values_readiness_section": "Work Values and Career Readiness",
+        "analyse": "I enjoy analysing complex information.",
+        "plan": "I prefer turning ideas into structured plans.",
+        "people": "I gain energy from working with people.",
+        "create": "I enjoy creating new solutions.",
+        "uncertain": "I stay calm when decisions are uncertain.",
+        "data_interest": "Analysing data and solving problems",
+        "help": "Helping, teaching or supporting people",
+        "lead": "Leading initiatives and influencing decisions",
+        "creative": "Creating content, designs or new ideas",
+        "organise": "Organising processes and managing details",
+        "comm": "Communication",
+        "data_skill": "Data analysis",
+        "problem": "Problem solving",
+        "present": "Presentation",
+        "digital": "Digital tools",
+        "write": "Writing",
+        "coord": "Project coordination",
+        "research": "Research",
+        "growth": "Growth",
+        "stability": "Stability",
+        "income": "Income",
+        "impact": "Impact",
+        "autonomy": "Autonomy",
+        "leadership": "Leadership",
+        "resume": "Resume readiness",
+        "interview": "Interview confidence",
+        "portfolio": "Portfolio evidence",
+        "clarity": "Role clarity",
+        "search": "Job-search consistency",
+    },
+    "zh": {
+        "core_strengths_section": "工作优势",
+        "interests_section": "职业兴趣",
+        "skills_section": "当前技能",
+        "values_readiness_section": "工作价值观与职业准备度",
+        "analyse": "我喜欢分析复杂信息。",
+        "plan": "我倾向于把想法转化为结构化计划。",
+        "people": "我从与他人合作中获得动力。",
+        "create": "我喜欢创造新的解决方案。",
+        "uncertain": "在不确定的情况下，我仍能保持冷静。",
+        "data_interest": "分析数据并解决问题",
+        "help": "帮助、教学或支持他人",
+        "lead": "领导项目并影响决策",
+        "creative": "创作内容、设计或新想法",
+        "organise": "组织流程并管理细节",
+        "comm": "沟通能力",
+        "data_skill": "数据分析",
+        "problem": "问题解决",
+        "present": "展示表达",
+        "digital": "数字工具",
+        "write": "写作能力",
+        "coord": "项目协调",
+        "research": "研究能力",
+        "growth": "成长",
+        "stability": "稳定性",
+        "income": "收入",
+        "impact": "影响力",
+        "autonomy": "自主性",
+        "leadership": "领导力",
+        "resume": "简历准备度",
+        "interview": "面试信心",
+        "portfolio": "作品集证据",
+        "clarity": "岗位清晰度",
+        "search": "求职持续性",
+    },
+    "ms": {
+        "core_strengths_section": "Kekuatan Kerja",
+        "interests_section": "Minat Kerjaya",
+        "skills_section": "Kemahiran Semasa",
+        "values_readiness_section": "Nilai Kerja dan Kesediaan Kerjaya",
+        "analyse": "Saya suka menganalisis maklumat yang kompleks.",
+        "plan": "Saya lebih suka menukar idea kepada pelan yang berstruktur.",
+        "people": "Saya mendapat tenaga daripada bekerja dengan orang lain.",
+        "create": "Saya suka mencipta penyelesaian baharu.",
+        "uncertain": "Saya kekal tenang apabila keputusan tidak pasti.",
+        "data_interest": "Menganalisis data dan menyelesaikan masalah",
+        "help": "Membantu, mengajar atau menyokong orang lain",
+        "lead": "Memimpin inisiatif dan mempengaruhi keputusan",
+        "creative": "Mencipta kandungan, reka bentuk atau idea baharu",
+        "organise": "Mengatur proses dan mengurus perincian",
+        "comm": "Komunikasi",
+        "data_skill": "Analisis data",
+        "problem": "Penyelesaian masalah",
+        "present": "Pembentangan",
+        "digital": "Alat digital",
+        "write": "Penulisan",
+        "coord": "Koordinasi projek",
+        "research": "Penyelidikan",
+        "growth": "Pertumbuhan",
+        "stability": "Kestabilan",
+        "income": "Pendapatan",
+        "impact": "Impak",
+        "autonomy": "Autonomi",
+        "leadership": "Kepimpinan",
+        "resume": "Kesediaan resume",
+        "interview": "Keyakinan temu duga",
+        "portfolio": "Bukti portfolio",
+        "clarity": "Kejelasan peranan",
+        "search": "Konsistensi pencarian kerja",
+    },
+}
+
+def qtr(key: str) -> str:
+    return QUESTION_TEXT.get(st.session_state.lang, QUESTION_TEXT["en"]).get(key, QUESTION_TEXT["en"].get(key, key))
+
+
 ROLES={
 "Business Analyst":{"salary":"RM 3,500–5,500 / month","time":"4–6 months","w":{"a":.25,"s":.20,"c":.15,"d":.20,"e":.10,"r":.10},"g":["SQL","Dashboard storytelling","Business requirements"],"n":"Build a small business dashboard and explain the problem, metric and recommendation."},
 "Data Analyst":{"salary":"RM 3,200–5,000 / month","time":"5–7 months","w":{"a":.30,"s":.15,"c":.08,"d":.30,"e":.05,"r":.12},"g":["SQL","Python","Portfolio evidence"],"n":"Complete one public-data project and present three actionable findings."},
@@ -278,15 +391,15 @@ def candidate():
                 name=st.text_input(tr("name"),st.session_state.candidate["name"]); email=st.text_input(tr("email"),st.session_state.candidate["email"]); uni=st.text_input(tr("uni"),st.session_state.candidate["university"])
             with c2:
                 major=st.text_input(tr("major"),st.session_state.candidate["major"]); year=st.number_input(tr("year"),2020,2035,int(st.session_state.candidate["year"]))
-            st.markdown(f"#### {tr('strengths')}")
-            s1=st.slider("I enjoy analysing complex information.",1,5,4); s2=st.slider("I prefer turning ideas into structured plans.",1,5,4); s3=st.slider("I gain energy from working with people.",1,5,3); s4=st.slider("I enjoy creating new solutions.",1,5,4); s5=st.slider("I stay calm when decisions are uncertain.",1,5,3)
-            st.markdown("#### Interests / 兴趣 / Minat")
-            i1=st.slider("Analysing data and solving problems",1,5,5); i2=st.slider("Helping, teaching or supporting people",1,5,3); i3=st.slider("Leading initiatives and influencing decisions",1,5,4); i4=st.slider("Creating content, designs or new ideas",1,5,3); i5=st.slider("Organising processes and managing details",1,5,4)
-            st.markdown("#### Skills / 技能 / Kemahiran")
-            k1=st.slider("Communication",1,5,4); k2=st.slider("Data analysis",1,5,3); k3=st.slider("Problem solving",1,5,4); k4=st.slider("Presentation",1,5,3); k5=st.slider("Digital tools",1,5,3); k6=st.slider("Writing",1,5,4); k7=st.slider("Project coordination",1,5,3); k8=st.slider("Research",1,5,4)
-            st.markdown("#### Values & Readiness")
-            v1=st.slider("Growth",1,5,5); v2=st.slider("Stability",1,5,3); v3=st.slider("Income",1,5,4); v4=st.slider("Impact",1,5,4); v5=st.slider("Autonomy",1,5,4); v6=st.slider("Leadership",1,5,3)
-            r1=st.slider("Resume readiness",1,5,3); r2=st.slider("Interview confidence",1,5,3); r3=st.slider("Portfolio evidence",1,5,2); r4=st.slider("Role clarity",1,5,4); r5=st.slider("Job-search consistency",1,5,3)
+            st.markdown(f"#### {qtr('core_strengths_section')}")
+            s1=st.slider(qtr("analyse"),1,5,4); s2=st.slider(qtr("plan"),1,5,4); s3=st.slider(qtr("people"),1,5,3); s4=st.slider(qtr("create"),1,5,4); s5=st.slider(qtr("uncertain"),1,5,3)
+            st.markdown(f"#### {qtr('interests_section')}")
+            i1=st.slider(qtr("data_interest"),1,5,5); i2=st.slider(qtr("help"),1,5,3); i3=st.slider(qtr("lead"),1,5,4); i4=st.slider(qtr("creative"),1,5,3); i5=st.slider(qtr("organise"),1,5,4)
+            st.markdown(f"#### {qtr('skills_section')}")
+            k1=st.slider(qtr("comm"),1,5,4); k2=st.slider(qtr("data_skill"),1,5,3); k3=st.slider(qtr("problem"),1,5,4); k4=st.slider(qtr("present"),1,5,3); k5=st.slider(qtr("digital"),1,5,3); k6=st.slider(qtr("write"),1,5,4); k7=st.slider(qtr("coord"),1,5,3); k8=st.slider(qtr("research"),1,5,4)
+            st.markdown(f"#### {qtr('values_readiness_section')}")
+            v1=st.slider(qtr("growth"),1,5,5); v2=st.slider(qtr("stability"),1,5,3); v3=st.slider(qtr("income"),1,5,4); v4=st.slider(qtr("impact"),1,5,4); v5=st.slider(qtr("autonomy"),1,5,4); v6=st.slider(qtr("leadership"),1,5,3)
+            r1=st.slider(qtr("resume"),1,5,3); r2=st.slider(qtr("interview"),1,5,3); r3=st.slider(qtr("portfolio"),1,5,2); r4=st.slider(qtr("clarity"),1,5,4); r5=st.slider(qtr("search"),1,5,3)
             sub=st.form_submit_button(tr("gen"),use_container_width=True)
         if sub:
             if not name or "@" not in email: st.error(tr("invalid")); return
