@@ -478,6 +478,30 @@ def candidate():
             "text/plain",
             use_container_width=True,
         )
+
+def safe_display_df(df: pd.DataFrame, columns: list[str] | None = None) -> pd.DataFrame:
+    """Return a Streamlit-safe dataframe by selecting columns and normalising mixed values."""
+    if df is None or df.empty:
+        return pd.DataFrame()
+
+    out = df.copy()
+    if columns:
+        existing = [c for c in columns if c in out.columns]
+        out = out[existing].copy()
+
+    for col in out.columns:
+        if out[col].dtype == "object":
+            out[col] = out[col].apply(
+                lambda x: json.dumps(x, ensure_ascii=False) if isinstance(x, (dict, list)) else ("" if x is None else str(x))
+            )
+
+    for col in out.columns:
+        if col in ["top_role_score", "second_role_score", "third_role_score", "readiness_score", "graduation_year"]:
+            out[col] = pd.to_numeric(out[col], errors="coerce").fillna(0).astype(int)
+
+    return out
+
+
 def org():
     nav()
     if st.button(tr("back")): go("home")
@@ -491,10 +515,21 @@ def org():
     readiness=pd.to_numeric(df["readiness_score"],errors="coerce").fillna(0)
     with tabs[0]:
         c1,c2,c3,c4=st.columns(4); c1.metric(tr("pool"),len(df)); c2.metric(tr("jobready"),int((readiness>=75).sum())); c3.metric(tr("developing"),int(((readiness>=50)&(readiness<75)).sum())); c4.metric(tr("intervention"),int((readiness<50).sum()))
-        st.dataframe(df[["name","university","major","top_role","top_role_score","readiness_score"]],use_container_width=True,hide_index=True)
+        display_df = safe_display_df(df, ["name","university","major","top_role","top_role_score","readiness_score"])
+        display_df = display_df.rename(columns={
+            "name":"Candidate",
+            "university":"University",
+            "major":"Major",
+            "top_role":"Top Role",
+            "top_role_score":"Fit Score",
+            "readiness_score":"Readiness Score",
+        })
+        st.dataframe(display_df, use_container_width=True, hide_index=True)
     with tabs[1]:
         top=df["top_role"].mode().iloc[0] if not df["top_role"].dropna().empty else "—"
         c1,c2,c3,c4=st.columns(4); c1.metric(tr("records"),len(df)); c2.metric(tr("avg"),f"{readiness.mean():.0f}/100"); c3.metric(tr("share"),f"{readiness.ge(75).mean()*100:.0f}%"); c4.metric(tr("common"),top)
-        vc=df["top_role"].value_counts().rename_axis("Career Path").reset_index(name="Candidates"); st.dataframe(vc,use_container_width=True,hide_index=True); st.bar_chart(vc.set_index("Career Path"))
+        vc=df["top_role"].astype(str).value_counts().rename_axis("Career Path").reset_index(name="Candidates")
+        st.dataframe(vc, use_container_width=True, hide_index=True)
+        st.bar_chart(vc.set_index("Career Path"))
 routes={"home":home,"candidate":candidate,"org":org}
 _ = routes.get(st.session_state.view, home)()
