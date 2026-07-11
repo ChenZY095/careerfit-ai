@@ -108,11 +108,38 @@ def featured_jobs_section(title: str = "Featured Opportunities"):
 
 
 
+def fallback_ai_style_explanation(profile, candidate):
+    ranked_roles = profile.get("ranked", [])
+    top_role = ranked_roles[0][0] if ranked_roles else "the recommended role"
+    top_score = ranked_roles[0][1] if ranked_roles else 0
+    strengths = ", ".join(profile.get("strengths", []))
+    gaps = ", ".join(profile.get("gaps", []))
+
+    return f"""
+**1. Career identity explanation**
+
+{candidate.get("name", "This candidate")} is identified as an **{profile.get("identity", "Adaptive Problem Solver")}**. This suggests a profile with visible strengths in structured thinking, problem solving, and career-oriented self-development.
+
+**2. Why the top role fits**
+
+The strongest current match is **{top_role}** with a fit score of **{top_score}%**. This indicates that the candidate's current strengths and interests align reasonably well with the requirements of this pathway, especially in areas such as {strengths}.
+
+**3. Main skill gaps**
+
+The main development priorities are **{gaps}**. These gaps do not mean the candidate is unsuitable. They indicate where focused preparation would make the profile more competitive.
+
+**4. 30-day next step**
+
+In the next 30 days, the candidate should complete one small portfolio task related to **{top_role}**, document the process, and prepare a short explanation of the problem, method, and result.
+
+*Note: Gemini API quota was unavailable, so this explanation was generated using the built-in fallback explanation layer.*
+"""
+
 def generate_ai_explanation(profile, candidate):
     try:
         api_key = st.secrets.get("GEMINI_API_KEY", "")
         if not api_key:
-            return "AI explanation is not enabled. Please add GEMINI_API_KEY in Streamlit Secrets."
+            return fallback_ai_style_explanation(profile, candidate)
 
         client = genai.Client(api_key=api_key)
 
@@ -146,15 +173,29 @@ Keep it under 180 words.
 Use clear English.
 """
 
-        response = client.models.generate_content(
-            model="gemini-2.0-flash",
-            contents=prompt,
-        )
+        models_to_try = [
+            "gemini-3-flash-preview",
+            "gemini-2.5-flash",
+            "gemini-2.0-flash",
+        ]
 
-        return response.text
+        last_error = None
+        for model_name in models_to_try:
+            try:
+                response = client.models.generate_content(
+                    model=model_name,
+                    contents=prompt,
+                )
+                if response and response.text:
+                    return response.text
+            except Exception as model_error:
+                last_error = model_error
+                continue
 
-    except Exception as e:
-        return f"AI explanation could not be generated: {e}"
+        return fallback_ai_style_explanation(profile, candidate)
+
+    except Exception:
+        return fallback_ai_style_explanation(profile, candidate)
 
 
 def db():
@@ -265,7 +306,7 @@ def candidate():
         if prof:
             st.divider()
             st.markdown("### AI Career Explanation")
-            st.caption("Gemini is used only as an explanation layer. Role-fit scoring remains rule-based and transparent.")
+            st.caption("Gemini is used as an optional explanation layer. If API quota is unavailable, a built-in fallback explanation is shown. Role-fit scoring remains rule-based and transparent.")
             if st.button("Generate AI Career Explanation", use_container_width=True):
                 ai_text = generate_ai_explanation(st.session_state.profile, st.session_state.candidate)
                 st.markdown(ai_text)
